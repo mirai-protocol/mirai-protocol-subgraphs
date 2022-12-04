@@ -209,7 +209,7 @@ export function updatePrices(execProxyAddress: Address, market: Market, event: e
   // this is the inversion of WETH price in USD
   const USDCPriceWETHResult = execProxyContract.try_getPriceFull(Address.fromString(USDC_ERC20_ADDRESS));
   if (underlyingPriceWETHResult.reverted) {
-    log.warning("[updatePrices]try_getPriceFull({}) reverted at block {}", [
+    log.warning("[updatePrices_weth]try_getPriceFull({}) reverted at block {}", [
       underlying.toHexString(),
       blockNumber.toString(),
     ]);
@@ -217,7 +217,7 @@ export function updatePrices(execProxyAddress: Address, market: Market, event: e
   }
 
   if (USDCPriceWETHResult.reverted) {
-    log.warning("[updatePrices]try_getPriceFull({}) reverted at block {}", ["USDC", blockNumber.toString()]);
+    log.warning("[updatePrices_usdc]try_getPriceFull({}) reverted at block {}", ["USDC", blockNumber.toString()]);
     return null;
   }
 

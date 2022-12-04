@@ -1,4 +1,4 @@
-import { Address, BigInt } from "@graphprotocol/graph-ts";
+import { Address, BigInt, log } from "@graphprotocol/graph-ts";
 import {
   AssetStatus,
   Borrow,
@@ -91,34 +91,41 @@ export function handleAssetStatus(event: AssetStatus): void {
 function updateProtocolTVL(event: AssetStatus, protocol: LendingProtocol): void {
   if (event.block.number.ge(protocol._lastUpdateBlockNumber!.plus(BIGINT_SEVENTY_FIVE))) {
     const eulerContract = Euler.bind(Address.fromString(EULER_ADDRESS));
-    const execProxyAddress = eulerContract.moduleIdToProxy(MODULEID__EXEC);
-    let totalDepositBalanceUSD = BIGDECIMAL_ZERO;
-    let totalBorrowBalanceUSD = BIGDECIMAL_ZERO;
-    for (let i = 0; i < protocol._marketIDs!.length; i++) {
-      const mrktID = protocol._marketIDs![i];
-      const mrkt = getOrCreateMarket(mrktID);
-      const tkn = getOrCreateToken(Address.fromString(mrkt.inputToken));
-      const currPriceUSD = updatePrices(execProxyAddress, mrkt, event);
-      const underlyingPriceUSD = currPriceUSD ? currPriceUSD : mrkt.inputTokenPriceUSD;
-      // mark-to-market
-      mrkt.totalDepositBalanceUSD = bigIntToBDUseDecimals(mrkt.inputTokenBalance, tkn.decimals).times(
-        underlyingPriceUSD,
-      );
-      mrkt.totalBorrowBalanceUSD = bigIntToBDUseDecimals(mrkt._totalBorrowBalance!, tkn.decimals).times(
-        underlyingPriceUSD,
-      );
-      mrkt.totalValueLockedUSD = mrkt.totalDepositBalanceUSD;
-      mrkt.save();
 
-      totalDepositBalanceUSD = totalDepositBalanceUSD.plus(mrkt.totalDepositBalanceUSD);
-      totalBorrowBalanceUSD = totalBorrowBalanceUSD.plus(mrkt.totalBorrowBalanceUSD);
+    if (!eulerContract.try_moduleIdToProxy(MODULEID__EXEC).reverted) {
+      const execProxyAddress = eulerContract.moduleIdToProxy(MODULEID__EXEC);
+
+      let totalDepositBalanceUSD = BIGDECIMAL_ZERO;
+      let totalBorrowBalanceUSD = BIGDECIMAL_ZERO;
+      for (let i = 0; i < protocol._marketIDs!.length; i++) {
+        const mrktID = protocol._marketIDs![i];
+        const mrkt = getOrCreateMarket(mrktID);
+        const tkn = getOrCreateToken(Address.fromString(mrkt.inputToken));
+        const currPriceUSD = updatePrices(execProxyAddress, mrkt, event);
+        const underlyingPriceUSD = currPriceUSD ? currPriceUSD : mrkt.inputTokenPriceUSD;
+        // mark-to-market
+        mrkt.totalDepositBalanceUSD = bigIntToBDUseDecimals(mrkt.inputTokenBalance, tkn.decimals).times(
+          underlyingPriceUSD,
+        );
+        mrkt.totalBorrowBalanceUSD = bigIntToBDUseDecimals(mrkt._totalBorrowBalance!, tkn.decimals).times(
+          underlyingPriceUSD,
+        );
+        mrkt.totalValueLockedUSD = mrkt.totalDepositBalanceUSD;
+        mrkt.save();
+
+        totalDepositBalanceUSD = totalDepositBalanceUSD.plus(mrkt.totalDepositBalanceUSD);
+        totalBorrowBalanceUSD = totalBorrowBalanceUSD.plus(mrkt.totalBorrowBalanceUSD);
+      }
+
+      protocol.totalDepositBalanceUSD = totalDepositBalanceUSD;
+      protocol.totalBorrowBalanceUSD = totalBorrowBalanceUSD;
+      protocol.totalValueLockedUSD = totalDepositBalanceUSD;
+      protocol._lastUpdateBlockNumber = event.block.number;
+      protocol.save();
+    } else {
+      log.info(EULER_ADDRESS.toString(), []);
+      log.info("proxyrevreted", []);
     }
-
-    protocol.totalDepositBalanceUSD = totalDepositBalanceUSD;
-    protocol.totalBorrowBalanceUSD = totalBorrowBalanceUSD;
-    protocol.totalValueLockedUSD = totalDepositBalanceUSD;
-    protocol._lastUpdateBlockNumber = event.block.number;
-    protocol.save();
   }
 }
 
